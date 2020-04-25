@@ -1,22 +1,19 @@
 import { SVG } from '@svgdotjs/svg.js'
 
-// @ts-ignore
-const isCommonJS = typeof require !==  'undefined';
-
-console.log(`isCommonJS: ${isCommonJS}`)
-if (isCommonJS) {
-  // @ts-ignore
-  const {registerWindow}  =  global['require']('@svgdotjs/svg.js');
-  // @ts-ignore
-  const window = global['require']('svgdom');
-  registerWindow(window, window.document)
-
-}
-
+declare var window: any;
 
 export class Generator {
+  constructor() {
+    if (typeof window === 'undefined') {
+      // @ts-ignore
+      const {registerWindow}  =  __non_webpack_require__('@svgdotjs/svg.js');
+      // @ts-ignore
+      const svgWindow = __non_webpack_require__('svgdom');
+      registerWindow(svgWindow, svgWindow.document)
+    }
+  }
     generate(): SVGElement {
-        var draw = SVG().size(300, 300)
+        const draw = SVG().size(300, 300)
         // var rect = draw.rect(100, 100).attr({ fill: '#f06' })
         const staffLineWidth = 1;
         const spaceBetweenCenterOfLines = 10;
