@@ -1,0 +1,20 @@
+{
+  "extends": "../../tslint.json",
+  "rules": {
+    "directive-selector": [
+      true,
+      "attribute",
+      "musicSnippetGenerator",
+      "camelCase"
+    ],
+    "component-selector": [
+      true,
+      "element",
+      "music-snippet-generator",
+      "kebab-case"
+    ]
+  },
+  "linterOptions": {
+    "exclude": ["!**/*"]
+  }
+}
