@@ -1,8 +1,45 @@
-import { SVG } from '@svgdotjs/svg.js'
+import { SVG, Svg } from '@svgdotjs/svg.js'
 
 declare var window: any;
 
+type Pitch = string;
+
 export class Generator {
+
+  private marginVertical = 5
+  private marginHorizontal = 10
+  private width = 400
+  private height = 200
+  private staffLineWidth = 1;
+  private staffLineStrokeProperties = {width: this.staffLineWidth, color: "black"};
+  
+  public MusicSvg = class {
+    private contentBeginX = this.superThis.marginHorizontal
+    private contentEndX = this.superThis.width - 2 * this.superThis.marginHorizontal
+
+    constructor(private superThis: Generator, private pitchToOffset: Map<Pitch, number>, private draw: Svg, private spaceBetweenLines: number) {
+    }
+    drawStaffLine(offset: number) {
+      this.draw.line(this.contentBeginX, offset, this.contentEndX , offset).stroke(this.superThis.staffLineStrokeProperties);
+    }
+  
+    drawStaff(pitches: Pitch[]) {
+      for (const pitch of pitches) {
+        const offset = this.pitchToOffset.get(pitch);
+        this.drawStaffLine(offset);
+      }
+      const pitchOffsetFirst = this.pitchToOffset.get(pitches[0]);
+      const pitchOffsetLast = this.pitchToOffset.get(pitches[pitches.length - 1]);
+      this.draw.line(this.contentBeginX, pitchOffsetFirst, this.contentBeginX, pitchOffsetLast).stroke(this.superThis.staffLineStrokeProperties)
+      this.draw.line(this.contentEndX, pitchOffsetFirst, this.contentEndX, pitchOffsetLast).stroke(this.superThis.staffLineStrokeProperties)
+    }
+  
+    drawPitch(pitch: Pitch, x: number) {
+      const offset = this.pitchToOffset.get(pitch);
+      this.draw.ellipse(10, this.spaceBetweenLines - this.superThis.staffLineWidth).cx(x).cy(offset);
+    }
+  }
+
   constructor() {
     if (typeof window === 'undefined') {
       // @ts-ignore
@@ -12,22 +49,62 @@ export class Generator {
       registerWindow(svgWindow, svgWindow.document)
     }
   }
+
+  private notes =  ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+
+
+  generatePitchSequence(start: Pitch, stop: Pitch): Pitch[] {
+    let pitchClass = parseInt(start.substr(1), 10)
+    let index = this.notes.indexOf(start[0]);
+    const pitchSequence = []
+    let currentPitch
+
+    do {            
+      const currentNode = this.notes[index];
+      if (currentNode === 'C') {
+        pitchClass++
+      }
+      currentPitch  = `${currentNode}${pitchClass}`;
+      pitchSequence.push(currentPitch);
+      if (index === (this.notes.length -1)) {
+        index = 0;
+      } else {
+        index++;
+      }
+    } while (currentPitch !== stop)
+    return pitchSequence;
+  }
+
+  calculatePitchToOffset(pitchSequence: Pitch[], spaceBetweenLines: number, strokeWidth: number) : Map<Pitch, number> {
+
+    const increment = (spaceBetweenLines + strokeWidth) * 0.5 + strokeWidth
+    return pitchSequence.reduce((pitchToOffset, currentPitch, index) => {
+      let currentOffset = pitchToOffset.get(pitchSequence[index - 1]) || 0
+      currentOffset += increment / 2
+      pitchToOffset.set(currentPitch, currentOffset);
+      return pitchToOffset
+    }, new Map())    
+  }
+
     generate(): SVGElement {
-        const draw = SVG().size(300, 300)
+        const draw = SVG().size(this.width, this.height)
         // var rect = draw.rect(100, 100).attr({ fill: '#f06' })
         const staffLineWidth = 1;
         const spaceBetweenCenterOfLines = 10;
-        const spaceBetweenLines = spaceBetweenCenterOfLines - 2 * staffLineWidth;
-        const marginTop = 15;
-        const staffLineStrokeProperties = {width: staffLineWidth, color: "black"};
-        const lineOffset = []
-        for (let i = 0; i < 5; i++) {
-          const offset = i * spaceBetweenLines + marginTop;
-          lineOffset.push(offset);
-          draw.line(0, offset, 100, offset).stroke(staffLineStrokeProperties);
-        }
-        draw.line(0, marginTop, 0, 4 * spaceBetweenLines + marginTop).stroke(staffLineStrokeProperties)
-        draw.line(100, marginTop, 100, 4 * spaceBetweenLines + marginTop).stroke(staffLineStrokeProperties)
+        // const spaceBetweenLines = spaceBetweenCenterOfLines - 2 * staffLineWidth;
+        const pitchSequence = this.generatePitchSequence("B-1", "B7").reverse()
+        const numberOfLines = (pitchSequence.length - 1) / 2
+        const heightRemainingForSpaceBetweenLines = this.height - 2 * this.marginVertical - numberOfLines * staffLineWidth
+        const spaceBetweenLines = heightRemainingForSpaceBetweenLines / (numberOfLines + 1)
+        const pitchToOffset = this.calculatePitchToOffset(pitchSequence, spaceBetweenLines, staffLineWidth)
+        const mDraw = new this.MusicSvg(this, pitchToOffset, draw, spaceBetweenLines);
+        const trebleStaffPitches = ["E4", "G4", "B4", "D5", "F5"]
+        mDraw.drawStaff(trebleStaffPitches);
+        const bassStaffPitches = ["G2", "B2", "D3", "F3", "A3"]
+        mDraw.drawStaff(bassStaffPitches);
+        pitchSequence.forEach((pitch, index) => {
+          mDraw.drawPitch(pitch, this.marginHorizontal + 10 + index * 12);
+        })
         // draw.ellipse(10, spaceBetweenLines).cx(30).cy(2 * spaceBetweenLines + marginTop);
         // draw.path(`M 22 ${lineOffset[3] + spaceBetweenLines/2} 
         //            C 15 ${lineOffset[2] } 40 ${lineOffset[2] } 35 ${lineOffset[3] + spaceBetweenLines/2}
@@ -76,7 +153,7 @@ export class Generator {
         // // .stroke({width: 1, color: "black", linecap: "round", linejoin: "round"})
         // // .attr({fill: 'transparent'})
         // .fill('black')
-        const text = draw.text("𝄞").x(20).y(lineOffset[2]).font("font-size: 20px")
+        // const text = draw.text("𝄞").x(20).y(lineOffset[2]).font("font-size: 20px")
         return draw.node as SVGElement
     }
 }
