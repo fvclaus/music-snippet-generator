@@ -1,4 +1,14 @@
 import { SVG, Svg } from '@svgdotjs/svg.js'
+import { MdlListener } from './grammar/MdlListener';
+import { MdlLexer } from './grammar/MdlLexer';
+import { MdlParser } from './grammar/MdlParser';
+import { PitchContext } from './grammar/MdlParser';
+import { ANTLRInputStream, CommonTokenStream } from 'antlr4ts';
+import { ParseTreeWalker } from 'antlr4ts/tree/ParseTreeWalker'
+import { ParseTreeListener } from 'antlr4ts/tree/ParseTreeListener';
+import { ErrorNode } from 'antlr4ts/tree/ErrorNode';
+ 
+
 
 declare var window: any;
 
@@ -28,10 +38,14 @@ export class Generator {
         const offset = this.pitchToOffset.get(pitch);
         this.drawStaffLine(offset);
       }
+      this.drawBarline(this.contentBeginX, pitches);
+      this.drawBarline(this.contentEndX, pitches);
+    }
+
+    drawBarline(offset: number, pitches: Pitch[]) {
       const pitchOffsetFirst = this.pitchToOffset.get(pitches[0]);
       const pitchOffsetLast = this.pitchToOffset.get(pitches[pitches.length - 1]);
-      this.draw.line(this.contentBeginX, pitchOffsetFirst, this.contentBeginX, pitchOffsetLast).stroke(this.superThis.staffLineStrokeProperties)
-      this.draw.line(this.contentEndX, pitchOffsetFirst, this.contentEndX, pitchOffsetLast).stroke(this.superThis.staffLineStrokeProperties)
+      this.draw.line(offset, pitchOffsetFirst, offset, pitchOffsetLast).stroke(this.superThis.staffLineStrokeProperties)
     }
   
     drawPitch(pitch: Pitch, x: number) {
@@ -86,7 +100,7 @@ export class Generator {
     }, new Map())    
   }
 
-    generate(): SVGElement {
+    generate(mdl: string): SVGElement {
         const draw = SVG().size(this.width, this.height)
         // var rect = draw.rect(100, 100).attr({ fill: '#f06' })
         const staffLineWidth = 1;
@@ -98,13 +112,58 @@ export class Generator {
         const spaceBetweenLines = heightRemainingForSpaceBetweenLines / (numberOfLines + 1)
         const pitchToOffset = this.calculatePitchToOffset(pitchSequence, spaceBetweenLines, staffLineWidth)
         const mDraw = new this.MusicSvg(this, pitchToOffset, draw, spaceBetweenLines);
-        const trebleStaffPitches = ["E4", "G4", "B4", "D5", "F5"]
-        mDraw.drawStaff(trebleStaffPitches);
-        const bassStaffPitches = ["G2", "B2", "D3", "F3", "A3"]
-        mDraw.drawStaff(bassStaffPitches);
-        pitchSequence.forEach((pitch, index) => {
-          mDraw.drawPitch(pitch, this.marginHorizontal + 10 + index * 12);
-        })
+        const listener : ParseTreeListener = new class implements MdlListener {
+          private xOffset;
+          private currentPitches: Pitch[]
+
+          constructor(marginHorizontal: number) {
+            this.xOffset = marginHorizontal + 10;
+          }
+          enterTrebleStaff() {
+            this.currentPitches = ["E4", "G4", "B4", "D5", "F5"]
+            mDraw.drawStaff(this.currentPitches);
+          }
+          enterBassStaff() {
+            this.currentPitches = ["G2", "B2", "D3", "F3", "A3"]
+            mDraw.drawStaff(this.currentPitches);
+          }
+
+          exitBar() {
+            mDraw.drawBarline(this.xOffset, this.currentPitches);
+            this.incrementOffset();
+          }
+
+
+          enterPitch(ctx: PitchContext) {
+            const pitchClass = ctx.tryGetToken(MdlParser.PITCH_CLASS, 0);
+            let pitch = ctx.NOTE().text;
+            if (pitchClass.constructor !== ErrorNode) {
+              pitch += pitchClass.text;
+            } else {
+              pitch += "4"
+            }
+            mDraw.drawPitch(pitch, this.xOffset);
+            this.incrementOffset();
+          }
+
+          incrementOffset() {
+            this.xOffset += 20;
+          }
+          
+        }(this.marginHorizontal) as ParseTreeListener;
+
+        // Create the lexer and parser
+        let inputStream = new ANTLRInputStream(mdl);
+        let lexer = new MdlLexer(inputStream);
+        let tokenStream = new CommonTokenStream(lexer);
+        let parser = new MdlParser(tokenStream);
+        
+        // Parse the input, where `compilationUnit` is whatever entry point you defined
+        let tree = parser.file();
+        // Create the listener
+        // Use the entry point for listeners
+        ParseTreeWalker.DEFAULT.walk(listener, tree)
+
         // draw.ellipse(10, spaceBetweenLines).cx(30).cy(2 * spaceBetweenLines + marginTop);
         // draw.path(`M 22 ${lineOffset[3] + spaceBetweenLines/2} 
         //            C 15 ${lineOffset[2] } 40 ${lineOffset[2] } 35 ${lineOffset[3] + spaceBetweenLines/2}
