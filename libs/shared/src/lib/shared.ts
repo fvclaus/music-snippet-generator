@@ -7,9 +7,11 @@ import { ANTLRInputStream, CommonTokenStream } from 'antlr4ts';
 import { ParseTreeWalker } from 'antlr4ts/tree/ParseTreeWalker'
 import { ParseTreeListener } from 'antlr4ts/tree/ParseTreeListener';
 import { ErrorNode } from 'antlr4ts/tree/ErrorNode';
+
+import wholeNote from '../assets/whole_note.svg';
+
+console.log(wholeNote);
  
-
-
 declare var window: any;
 
 type Pitch = string;
@@ -42,6 +44,10 @@ export class Generator {
       this.drawBarline(this.contentEndX, pitches);
     }
 
+    drawClef(symbol: string, pitch: Pitch) {
+      this.draw.text(symbol).x(20).y(this.pitchToOffset.get(pitch)).font("font-size: 20px")
+    }
+
     drawBarline(offset: number, pitches: Pitch[]) {
       const pitchOffsetFirst = this.pitchToOffset.get(pitches[0]);
       const pitchOffsetLast = this.pitchToOffset.get(pitches[pitches.length - 1]);
@@ -50,7 +56,9 @@ export class Generator {
   
     drawPitch(pitch: Pitch, x: number) {
       const offset = this.pitchToOffset.get(pitch);
-      this.draw.ellipse(10, this.spaceBetweenLines - this.superThis.staffLineWidth).cx(x).cy(offset);
+      // this.draw.ellipse(10, this.spaceBetweenLines - this.superThis.staffLineWidth).cx(x).cy(offset);
+      this.draw.text("𝅝").x(x).y(offset - 20).font("font-size: 20px");
+      this.draw.text("o").x(x).y(offset);
     }
   }
 
@@ -122,6 +130,8 @@ export class Generator {
           enterTrebleStaff() {
             this.currentPitches = ["E4", "G4", "B4", "D5", "F5"]
             mDraw.drawStaff(this.currentPitches);
+            mDraw.drawClef("𝄞", "E4");
+            this.incrementOffset();
           }
           enterBassStaff() {
             this.currentPitches = ["G2", "B2", "D3", "F3", "A3"]

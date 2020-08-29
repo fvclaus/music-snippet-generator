@@ -11,7 +11,7 @@ import { FormControl } from '@angular/forms';
 })
 export class AppComponent {
   hello$ = this.http.get<Message>('/api/hello');
-  mdlInput = new FormControl('t | A B C D |');
+  mdlInput = new FormControl();
   constructor(private http: HttpClient) {}
   private svgElement: SVGElement | null
 
@@ -28,5 +28,6 @@ export class AppComponent {
         console.error(e);
       }
     })
+    this.mdlInput.setValue('t | A B C D |');
   }
 }

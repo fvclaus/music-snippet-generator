@@ -13,8 +13,11 @@
       "prefix": "music-snippet-generator",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular-builders/custom-webpack:browser",
           "options": {
+            "customWebpackConfig": {
+              "path": "apps/frontend/webpack-config.js"
+            },
             "outputPath": "dist/apps/frontend",
             "index": "apps/frontend/src/index.html",
             "main": "apps/frontend/src/main.ts",
