@@ -8,7 +8,7 @@ import { ParseTreeWalker } from 'antlr4ts/tree/ParseTreeWalker'
 import { ParseTreeListener } from 'antlr4ts/tree/ParseTreeListener';
 import { ErrorNode } from 'antlr4ts/tree/ErrorNode';
 
-import wholeNote from '../assets/whole_note.svg';
+import wholeNote from 'svg-inline-loader!../assets/whole_note.svg';
 
 console.log(wholeNote);
  
