@@ -1,4 +1,4 @@
-import { SVG, Svg } from '@svgdotjs/svg.js'
+import { SVG, Svg, off } from '@svgdotjs/svg.js'
 import { MdlListener } from './grammar/MdlListener';
 import { MdlLexer } from './grammar/MdlLexer';
 import { MdlParser } from './grammar/MdlParser';
@@ -8,13 +8,45 @@ import { ParseTreeWalker } from 'antlr4ts/tree/ParseTreeWalker'
 import { ParseTreeListener } from 'antlr4ts/tree/ParseTreeListener';
 import { ErrorNode } from 'antlr4ts/tree/ErrorNode';
 
-import wholeNote from 'svg-inline-loader!../assets/whole_note.svg';
-
-console.log(wholeNote);
+import wholeNote from '!!raw-loader!../assets/whole_note.svg';
+import trebleClef from '!!raw-loader!../assets/treble_clef.svg';
  
-declare var window: any;
+declare var window: Window;
 
 type Pitch = string;
+
+
+const notes =  ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+
+function generatePitchSequence(start: Pitch, stop: Pitch): Pitch[] {
+  let pitchClass = parseInt(start.substr(1), 10)
+  let index = notes.indexOf(start[0]);
+  const pitchSequence = []
+  let currentPitch
+
+  do {            
+    const currentNode = notes[index];
+    if (currentNode === 'C') {
+      pitchClass++
+    }
+    currentPitch  = `${currentNode}${pitchClass}`;
+    pitchSequence.push(currentPitch);
+    if (index === (notes.length -1)) {
+      index = 0;
+    } else {
+      index++;
+    }
+  } while (currentPitch !== stop)
+  return pitchSequence;
+}
+
+
+const possiblePitches = generatePitchSequence("B-1", "B7").reverse();
+
+interface MusicSymbolInformation {
+  scale: number,
+  width: number
+}
 
 export class Generator {
 
@@ -28,110 +60,171 @@ export class Generator {
   public MusicSvg = class {
     private contentBeginX = this.superThis.marginHorizontal
     private contentEndX = this.superThis.width - 2 * this.superThis.marginHorizontal
+    private pitchesWithStaffLines: Pitch[];
+    private musicSymbolToInformation: Map<string, MusicSymbolInformation> = new Map();
+    private pitchToOffset: Map<Pitch, number>
+    private pitchToRequiresLedgerLine: {[key in Pitch]: boolean}
+    private spaceBetweenLines: number;
+    private xOffset: number = 0;
 
-    constructor(private superThis: Generator, private pitchToOffset: Map<Pitch, number>, private draw: Svg, private spaceBetweenLines: number) {
+    constructor(private superThis: Generator, private draw: Svg, private height:number, private marginVertical: number, private staffLineWidth: number, private pitchRange: Pitch[],
+      private pitchOffsetPercent: number, private barlineContentOffset: number) {
+      this.xOffset = this.contentBeginX
     }
-    drawStaffLine(offset: number) {
+
+    private drawStaffLine(offset: number) {
       this.draw.line(this.contentBeginX, offset, this.contentEndX , offset).stroke(this.superThis.staffLineStrokeProperties);
     }
   
-    drawStaff(pitches: Pitch[]) {
+    public drawStaff(pitches: Pitch[]) {
+      this.pitchesWithStaffLines = pitches;
+      this.calculateSpaceBetweenLines();
+      this.calculatePitchToOffset();
+
       for (const pitch of pitches) {
         const offset = this.pitchToOffset.get(pitch);
         this.drawStaffLine(offset);
       }
-      this.drawBarline(this.contentBeginX, pitches);
-      this.drawBarline(this.contentEndX, pitches);
+      this.drawBarLineWithOffset(this.contentBeginX);
+      this.xOffset += 5;
+      // this.drawBarLineWithOffset(this.contentEndX);
     }
 
-    drawClef(symbol: string, pitch: Pitch) {
-      this.draw.text(symbol).x(20).y(this.pitchToOffset.get(pitch)).font("font-size: 20px")
+    public drawTrebleClef() {
+      const information = this.drawSymbol(trebleClef, 7 * this.spaceBetweenLines, this.xOffset, this.pitchToOffset.get("B4"));
+      this.xOffset += 1.5 * information.width
     }
 
-    drawBarline(offset: number, pitches: Pitch[]) {
-      const pitchOffsetFirst = this.pitchToOffset.get(pitches[0]);
-      const pitchOffsetLast = this.pitchToOffset.get(pitches[pitches.length - 1]);
+    public drawBarline() {
+      this.drawBarLineWithOffset(this.xOffset)
+      this.xOffset += this.barlineContentOffset
+    }
+
+    private drawBarLineWithOffset(offset: number) {
+      const pitchOffsetFirst = this.pitchToOffset.get(this.pitchesWithStaffLines[0]);
+      const pitchOffsetLast = this.pitchToOffset.get(this.pitchesWithStaffLines[this.pitchesWithStaffLines.length - 1]) + this.staffLineWidth;
       this.draw.line(offset, pitchOffsetFirst, offset, pitchOffsetLast).stroke(this.superThis.staffLineStrokeProperties)
     }
   
-    drawPitch(pitch: Pitch, x: number) {
+    public drawPitch(pitch: Pitch) {
       const offset = this.pitchToOffset.get(pitch);
-      // this.draw.ellipse(10, this.spaceBetweenLines - this.superThis.staffLineWidth).cx(x).cy(offset);
-      this.draw.text("𝅝").x(x).y(offset - 20).font("font-size: 20px");
-      this.draw.text("o").x(x).y(offset);
+      // xOffset should be top left not center
+      const noteInformation = this.drawSymbol(wholeNote, this.spaceBetweenLines, this.xOffset, offset);
+      const isPitchOnStaffLine = this.pitchesWithStaffLines.includes(pitch);
+      if (!isPitchOnStaffLine && this.doesPitchRequireStaffLine(pitch)) {
+        this.draw.line(this.xOffset, offset, this.xOffset + 5, offset).stroke(this.superThis.staffLineStrokeProperties);
+      }
+      // Note is drawn center, so we must move at least an additional pitch (100%) to achieve the desired offset
+      this.xOffset += noteInformation.width  + noteInformation.width * this.pitchOffsetPercent;
+    }
+
+    private drawSymbol(symbol: string, targetHeight: number, x: number, y: number): MusicSymbolInformation {
+      if (!this.musicSymbolToInformation.has(symbol)) {
+        const group = this.draw.group();
+        group.svg(symbol);
+        const scale = targetHeight / group.height();        
+        this.musicSymbolToInformation.set(symbol, {scale, width: scale * group.width()});
+        group.remove();
+      }
+
+      const information = this.musicSymbolToInformation.get(symbol);
+      this.draw.group()
+        .svg(symbol)
+        .transform({
+          position: {
+            x: x + information.width / 2, 
+            y
+          },
+          scale: information.scale
+        })
+
+      return information;
+    }
+
+    private doesPitchRequireStaffLine(pitch: Pitch): boolean {
+      const distanceToStaffLines = this.pitchesWithStaffLines
+        .map(pitchWithStaffLine => Math.abs(possiblePitches.indexOf(pitch) - possiblePitches.indexOf(pitchWithStaffLine)));
+      distanceToStaffLines.sort();
+      return distanceToStaffLines[0] % 2 == 0;        
+    }
+
+    private calculateSpaceBetweenLines() {
+      this.populatePitchToRequiresLedgerLine();
+      const numberOfStaffAndLedgerLines = Object.values(this.pitchToRequiresLedgerLine).filter(b => b).length +
+        this.pitchesWithStaffLines.length;
+      const heightRemainingForSpaceBetweenLines = this.height - 2 * this.marginVertical - numberOfStaffAndLedgerLines * this.staffLineWidth;
+      const numberOfSpacesBetweenStaffOrLedgerLines = this.pitchRange.length - numberOfStaffAndLedgerLines;
+      this.spaceBetweenLines = heightRemainingForSpaceBetweenLines / numberOfSpacesBetweenStaffOrLedgerLines;
+      console.log("spacebetweenlines", this.spaceBetweenLines);
+    }
+
+    private populatePitchToRequiresLedgerLine() {
+      this.pitchToRequiresLedgerLine = this.pitchRange.reduce((pitchToRequiresLedgerLine, pitch) => {
+        pitchToRequiresLedgerLine[pitch] = this.calculateDistanceToNearestStaffline(pitch) % 2 == 0;
+        return pitchToRequiresLedgerLine;
+      }, {});
+    }
+
+    private calculateDistanceToNearestStaffline(pitch) {
+      const distanceToTop = Math.abs(
+        this.getPitchPosition(this.pitchesWithStaffLines[this.pitchesWithStaffLines.length - 1]) -
+        this.getPitchPosition(pitch));
+      const distanceToBottom = Math.abs(
+        this.getPitchPosition(this.pitchesWithStaffLines[0]) -
+        this.getPitchPosition(pitch));
+      return Math.min(distanceToBottom, distanceToTop);
+    }
+
+    private getPitchPosition(pitch): number {
+      return this.pitchRange.indexOf(pitch);
+    }
+
+    private calculatePitchToOffset() {
+      this.pitchToOffset = this.pitchRange.reduce((pitchToOffset, currentPitch, index) => {
+        let offset = pitchToOffset.get(this.pitchRange[index - 1]) || 0
+        offset += 0.5 * this.spaceBetweenLines;
+        
+        if ((index === 0 && this.isPitchOnLedgerOrStaffLine(currentPitch)) || index !== 0) {
+          offset += 0.5 * this.staffLineWidth;
+        } 
+
+        pitchToOffset.set(currentPitch, offset);
+        return pitchToOffset
+      }, new Map())
+    }
+
+    private isPitchOnLedgerOrStaffLine(pitch: Pitch): boolean {
+      return this.pitchToRequiresLedgerLine[pitch] || this.pitchesWithStaffLines.includes(pitch);
     }
   }
 
-  constructor() {
-    if (typeof window === 'undefined') {
-      // @ts-ignore
-      const {registerWindow}  =  __non_webpack_require__('@svgdotjs/svg.js');
-      // @ts-ignore
-      const svgWindow = __non_webpack_require__('svgdom');
-      registerWindow(svgWindow, svgWindow.document)
-    }
-  }
-
-  private notes =  ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-
-
-  generatePitchSequence(start: Pitch, stop: Pitch): Pitch[] {
-    let pitchClass = parseInt(start.substr(1), 10)
-    let index = this.notes.indexOf(start[0]);
-    const pitchSequence = []
-    let currentPitch
-
-    do {            
-      const currentNode = this.notes[index];
-      if (currentNode === 'C') {
-        pitchClass++
-      }
-      currentPitch  = `${currentNode}${pitchClass}`;
-      pitchSequence.push(currentPitch);
-      if (index === (this.notes.length -1)) {
-        index = 0;
-      } else {
-        index++;
-      }
-    } while (currentPitch !== stop)
-    return pitchSequence;
-  }
-
-  calculatePitchToOffset(pitchSequence: Pitch[], spaceBetweenLines: number, strokeWidth: number) : Map<Pitch, number> {
-
-    const increment = (spaceBetweenLines + strokeWidth) * 0.5 + strokeWidth
-    return pitchSequence.reduce((pitchToOffset, currentPitch, index) => {
-      let currentOffset = pitchToOffset.get(pitchSequence[index - 1]) || 0
-      currentOffset += increment / 2
-      pitchToOffset.set(currentPitch, currentOffset);
-      return pitchToOffset
-    }, new Map())    
-  }
-
-    generate(mdl: string): SVGElement {
+  generate(mdl: string): SVGElement {
         const draw = SVG().size(this.width, this.height)
+        const document = window.document;
+        let container = document.body;
+        // Hide SVG if code is run in browser
+        if (document.createElement) {
+          container = window.document.createElement('div');
+          // container.style.display = 'none';
+          container.style.visibility = 'hidden';
+          window.document.body.appendChild(container);
+        }
+        container.appendChild(draw.node);
         // var rect = draw.rect(100, 100).attr({ fill: '#f06' })
-        const staffLineWidth = 1;
+        
         const spaceBetweenCenterOfLines = 10;
         // const spaceBetweenLines = spaceBetweenCenterOfLines - 2 * staffLineWidth;
-        const pitchSequence = this.generatePitchSequence("B-1", "B7").reverse()
-        const numberOfLines = (pitchSequence.length - 1) / 2
-        const heightRemainingForSpaceBetweenLines = this.height - 2 * this.marginVertical - numberOfLines * staffLineWidth
-        const spaceBetweenLines = heightRemainingForSpaceBetweenLines / (numberOfLines + 1)
-        const pitchToOffset = this.calculatePitchToOffset(pitchSequence, spaceBetweenLines, staffLineWidth)
-        const mDraw = new this.MusicSvg(this, pitchToOffset, draw, spaceBetweenLines);
+        
+        const mDraw = new this.MusicSvg(this, draw, this.height, this.marginVertical, this.staffLineWidth, possiblePitches, 1, 5);
         const listener : ParseTreeListener = new class implements MdlListener {
-          private xOffset;
           private currentPitches: Pitch[]
 
           constructor(marginHorizontal: number) {
-            this.xOffset = marginHorizontal + 10;
           }
           enterTrebleStaff() {
             this.currentPitches = ["E4", "G4", "B4", "D5", "F5"]
             mDraw.drawStaff(this.currentPitches);
-            mDraw.drawClef("𝄞", "E4");
-            this.incrementOffset();
+            mDraw.drawTrebleClef();
           }
           enterBassStaff() {
             this.currentPitches = ["G2", "B2", "D3", "F3", "A3"]
@@ -139,8 +232,7 @@ export class Generator {
           }
 
           exitBar() {
-            mDraw.drawBarline(this.xOffset, this.currentPitches);
-            this.incrementOffset();
+            mDraw.drawBarline();
           }
 
 
@@ -152,13 +244,9 @@ export class Generator {
             } else {
               pitch += "4"
             }
-            mDraw.drawPitch(pitch, this.xOffset);
-            this.incrementOffset();
+            mDraw.drawPitch(pitch);
           }
 
-          incrementOffset() {
-            this.xOffset += 20;
-          }
           
         }(this.marginHorizontal) as ParseTreeListener;
 
@@ -173,56 +261,6 @@ export class Generator {
         // Create the listener
         // Use the entry point for listeners
         ParseTreeWalker.DEFAULT.walk(listener, tree)
-
-        // draw.ellipse(10, spaceBetweenLines).cx(30).cy(2 * spaceBetweenLines + marginTop);
-        // draw.path(`M 22 ${lineOffset[3] + spaceBetweenLines/2} 
-        //            C 15 ${lineOffset[2] } 40 ${lineOffset[2] } 35 ${lineOffset[3] + spaceBetweenLines/2}
-        //            S 15 ${lineOffset[4]} 15 ${lineOffset[3] + spaceBetweenLines / 2}
-        //            C 10 ${lineOffset[2]} 20 ${lineOffset[1] + spaceBetweenLines/2} 30 ${lineOffset[1] - spaceBetweenLines/2}
-        //            C 32 ${lineOffset[0] - spaceBetweenLines/2} 32 ${lineOffset[0] - spaceBetweenLines/2} 25 ${marginTop * 0.3}
-        //            C 20 ${lineOffset[0]} 23 ${lineOffset[0]} 25 ${lineOffset[1]}
-        //            L 30 ${lineOffset[4] + 1.5 * spaceBetweenLines}
-        //            C 30 ${lineOffset[4] + 2.3 * spaceBetweenLines} 20 ${lineOffset[4] + 2.3 * spaceBetweenLines} 20 ${lineOffset[4] + 1.5 * spaceBetweenLines}`)
-        //   .stroke({width: 1, color: "black", linecap: "round", linejoin: "round"})
-        //   .attr({fill: 'transparent'})
-        //   // .hide()
-    
-        // const thickness = 4
-        // draw.path(`M 52 ${lineOffset[3] + spaceBetweenLines/2} 
-        //            C 45 ${lineOffset[2] } 70 ${lineOffset[2] } 65 ${lineOffset[3] + spaceBetweenLines/2}
-        //            C 75 ${lineOffset[2] - thickness} 40 ${lineOffset[2] - thickness } 52 ${lineOffset[3] + spaceBetweenLines/2 }  
-    
-        //           `)
-        // .stroke({width: 1, color: "black", linecap: "round", linejoin: "round"})
-        // .attr({fill: 'transparent'})
-        // // .fill('black')
-    
-        // draw.path(`M 22 ${lineOffset[3] + spaceBetweenLines/2} 
-        //             C 15 ${lineOffset[2] } 40 ${lineOffset[2] } 35 ${lineOffset[3] + spaceBetweenLines/2}
-        //             C 44 ${lineOffset[2] - thickness} 11 ${lineOffset[2] - thickness } 22 ${lineOffset[3] + spaceBetweenLines/2 }  
-        //             `)
-        // // .stroke({width: 1, color: "black", linecap: "round", linejoin: "round"})
-        // // .attr({fill: 'transparent'})
-        // .fill('black')
-    
-        // draw.path(`M 35 ${lineOffset[3] + spaceBetweenLines/2}
-        //            C 33 ${lineOffset[4] + 2 } 29 ${lineOffset[4] + 0.5 * spaceBetweenLines/ 2} 29 ${lineOffset[4] + spaceBetweenLines / 2 - 1}
-        //            C 25 ${lineOffset[4] + thickness} 30 ${lineOffset[4] + spaceBetweenLines } M 33 ${lineOffset[3] + spaceBetweenLines/2}
-        //            `
-        // )
-        // .stroke({width: 1, color: "black", linecap: "round", linejoin: "round"})
-        // .attr({fill: 'transparent'})
-        // // .fill('black')
-    
-        // draw.path(`M 16 ${lineOffset[3] + spaceBetweenLines / 2 + 3}
-        //           C 5 ${lineOffset[2] - 2} 20 ${lineOffset[1] + spaceBetweenLines/2} 30 ${lineOffset[1] - spaceBetweenLines/2}
-        //           C 18 ${lineOffset[1] + spaceBetweenLines + 2}  13 ${lineOffset[2] - 2} 16 ${lineOffset[3] + spaceBetweenLines / 2 + 3}
-        //            `
-        // )
-        // // .stroke({width: 1, color: "black", linecap: "round", linejoin: "round"})
-        // // .attr({fill: 'transparent'})
-        // .fill('black')
-        // const text = draw.text("𝄞").x(20).y(lineOffset[2]).font("font-size: 20px")
         return draw.node as SVGElement
     }
 }

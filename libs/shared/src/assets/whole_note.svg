@@ -9,13 +9,13 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="210mm"
-   height="297mm"
-   viewBox="0 0 210 297"
+   width="3.418417mm"
+   height="2.1166699mm"
+   viewBox="0 0 3.418417 2.1166699"
    version="1.1"
    id="svg8"
-   inkscape:version="0.92.3 (2405546, 2018-03-11)"
-   sodipodi:docname="whole_note.svg">
+   sodipodi:docname="whole_note.svg"
+   inkscape:version="0.92.3 (2405546, 2018-03-11)">
   <defs
      id="defs2" />
   <sodipodi:namedview
@@ -25,9 +25,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="5.6"
-     inkscape:cx="280.85118"
-     inkscape:cy="897.04401"
+     inkscape:zoom="15.839192"
+     inkscape:cx="24.841614"
+     inkscape:cy="12.242362"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -35,7 +35,12 @@
      inkscape:window-height="1032"
      inkscape:window-x="0"
      inkscape:window-y="24"
-     inkscape:window-maximized="1" />
+     inkscape:window-maximized="1"
+     inkscape:snap-global="false"
+     fit-margin-top="0"
+     fit-margin-left="0"
+     fit-margin-right="0"
+     fit-margin-bottom="0" />
   <metadata
      id="metadata5">
     <rdf:RDF>
@@ -51,17 +56,17 @@
   <g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
-     id="layer1">
-    <text
-       xml:space="preserve"
+     id="layer1"
+     transform="translate(-59.744425,-47.414758)">
+    <g
+       aria-label="𝅝"
        style="font-style:normal;font-weight:normal;font-size:10.58333302px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
-       x="59.342258"
-       y="49.425594"
-       id="text3715"><tspan
-         sodipodi:role="line"
-         id="tspan3713"
-         x="59.342258"
-         y="49.425594"
-         style="stroke-width:0.26458332">𝅝</tspan></text>
+       id="text3715">
+      <path
+         d="m 61.416592,47.414761 q 0.73025,0 1.23825,0.28575 0.508,0.275167 0.508,0.79375 0,0.497417 -0.497417,0.772583 -0.497417,0.264584 -1.195917,0.264584 -0.73025,0 -1.227666,-0.275167 -0.497417,-0.275167 -0.497417,-0.814917 0,-0.381 0.306917,-0.624416 0.3175,-0.243417 0.66675,-0.3175 0.34925,-0.08467 0.6985,-0.08467 z m -0.5715,0.751417 q 0,0.4445 0.201083,0.783166 0.201083,0.338667 0.518583,0.338667 0.486834,0 0.486834,-0.529167 0,-0.423333 -0.201084,-0.751416 -0.1905,-0.338667 -0.529166,-0.338667 -0.47625,0 -0.47625,0.497417 z"
+         style="stroke-width:0.26458332"
+         id="path3758"
+         inkscape:connector-curvature="0" />
+    </g>
   </g>
 </svg>
