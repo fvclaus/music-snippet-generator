@@ -1,8 +1,8 @@
 import { SVG, Svg, off } from '@svgdotjs/svg.js'
-import { MdlListener } from './grammar/MdlListener';
-import { MdlLexer } from './grammar/MdlLexer';
-import { MdlParser } from './grammar/MdlParser';
-import { PitchContext } from './grammar/MdlParser';
+import { MdlListener } from './antlr4/MdlListener';
+import { MdlLexer } from './antlr4/MdlLexer';
+import { MdlParser } from './antlr4/MdlParser';
+import { PitchContext } from './antlr4/MdlParser';
 import { ANTLRInputStream, CommonTokenStream } from 'antlr4ts';
 import { ParseTreeWalker } from 'antlr4ts/tree/ParseTreeWalker'
 import { ParseTreeListener } from 'antlr4ts/tree/ParseTreeListener';
@@ -15,6 +15,16 @@ declare var window: Window;
 
 type Pitch = string;
 
+
+export class SyntaxError extends Error {
+
+}
+
+export class SyntaxErrors extends Error {
+  constructor(public syntaxErrors: SyntaxError[]) {
+    super("Parsing failed")
+  }
+}
 
 const notes =  ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 
@@ -71,20 +81,12 @@ export class Generator {
       private pitchOffsetPercent: number, private barlineContentOffset: number) {
       this.xOffset = this.contentBeginX
     }
-
-    private drawStaffLine(offset: number) {
-      this.draw.line(this.contentBeginX, offset, this.contentEndX , offset).stroke(this.superThis.staffLineStrokeProperties);
-    }
   
     public drawStaff(pitches: Pitch[]) {
       this.pitchesWithStaffLines = pitches;
       this.calculateSpaceBetweenLines();
       this.calculatePitchToOffset();
-
-      for (const pitch of pitches) {
-        const offset = this.pitchToOffset.get(pitch);
-        this.drawStaffLine(offset);
-      }
+      
       this.drawBarLineWithOffset(this.contentBeginX);
       this.xOffset += 5;
       // this.drawBarLineWithOffset(this.contentEndX);
@@ -97,6 +99,9 @@ export class Generator {
 
     public drawBarline() {
       this.drawBarLineWithOffset(this.xOffset)
+    }
+    
+    public drawEnterBarOffset() {
       this.xOffset += this.barlineContentOffset
     }
 
@@ -111,11 +116,23 @@ export class Generator {
       // xOffset should be top left not center
       const noteInformation = this.drawSymbol(wholeNote, this.spaceBetweenLines, this.xOffset, offset);
       const isPitchOnStaffLine = this.pitchesWithStaffLines.includes(pitch);
+      const offsetBetweenPitches = noteInformation.width * this.pitchOffsetPercent;
       if (!isPitchOnStaffLine && this.doesPitchRequireStaffLine(pitch)) {
-        this.draw.line(this.xOffset, offset, this.xOffset + 5, offset).stroke(this.superThis.staffLineStrokeProperties);
+        // TODO This ternary is weird
+        const lengthLedgerLineFromBorderOfPitch = offsetBetweenPitches * 0.3 > noteInformation.width? noteInformation.width : offsetBetweenPitches * 0.3
+        this.draw.line(this.xOffset - lengthLedgerLineFromBorderOfPitch, offset, 
+          this.xOffset + noteInformation.width + lengthLedgerLineFromBorderOfPitch, offset)
+          .stroke(this.superThis.staffLineStrokeProperties);
       }
       // Note is drawn center, so we must move at least an additional pitch (100%) to achieve the desired offset
-      this.xOffset += noteInformation.width  + noteInformation.width * this.pitchOffsetPercent;
+      this.xOffset += noteInformation.width  + offsetBetweenPitches;
+    }
+
+    public finish() {
+      for (const pitch of this.pitchesWithStaffLines) {
+        const offset = this.pitchToOffset.get(pitch);
+        this.draw.line(this.contentBeginX, offset, this.xOffset , offset).stroke(this.superThis.staffLineStrokeProperties);
+      }
     }
 
     private drawSymbol(symbol: string, targetHeight: number, x: number, y: number): MusicSymbolInformation {
@@ -210,10 +227,7 @@ export class Generator {
           window.document.body.appendChild(container);
         }
         container.appendChild(draw.node);
-        // var rect = draw.rect(100, 100).attr({ fill: '#f06' })
         
-        const spaceBetweenCenterOfLines = 10;
-        // const spaceBetweenLines = spaceBetweenCenterOfLines - 2 * staffLineWidth;
         
         const mDraw = new this.MusicSvg(this, draw, this.height, this.marginVertical, this.staffLineWidth, possiblePitches, 1, 5);
         const listener : ParseTreeListener = new class implements MdlListener {
@@ -226,41 +240,57 @@ export class Generator {
             mDraw.drawStaff(this.currentPitches);
             mDraw.drawTrebleClef();
           }
-          enterBassStaff() {
-            this.currentPitches = ["G2", "B2", "D3", "F3", "A3"]
-            mDraw.drawStaff(this.currentPitches);
+          exitTrebleStaff(){
+            mDraw.finish()
           }
 
+          enterBar() {
+            mDraw.drawEnterBarOffset();
+          }
+          
           exitBar() {
             mDraw.drawBarline();
           }
 
-
           enterPitch(ctx: PitchContext) {
             const pitchClass = ctx.tryGetToken(MdlParser.PITCH_CLASS, 0);
             let pitch = ctx.NOTE().text;
-            if (pitchClass.constructor !== ErrorNode) {
-              pitch += pitchClass.text;
-            } else {
-              pitch += "4"
-            }
+            pitch += pitchClass.text;
             mDraw.drawPitch(pitch);
           }
 
           
         }(this.marginHorizontal) as ParseTreeListener;
 
-        // Create the lexer and parser
-        let inputStream = new ANTLRInputStream(mdl);
-        let lexer = new MdlLexer(inputStream);
-        let tokenStream = new CommonTokenStream(lexer);
-        let parser = new MdlParser(tokenStream);
-        
-        // Parse the input, where `compilationUnit` is whatever entry point you defined
-        let tree = parser.file();
-        // Create the listener
-        // Use the entry point for listeners
-        ParseTreeWalker.DEFAULT.walk(listener, tree)
-        return draw.node as SVGElement
+        try {
+          // Create the lexer and parser
+          let inputStream = new ANTLRInputStream(mdl);
+          let lexer = new MdlLexer(inputStream);
+          // Remove console listener.
+          lexer.removeErrorListeners();
+          let tokenStream = new CommonTokenStream(lexer);
+          let parser = new MdlParser(tokenStream);
+  
+          const exceptions: SyntaxError[] = []
+          // Remove console listener
+          parser.removeErrorListeners();
+          parser.addErrorListener({
+            syntaxError(recognizer, offendingSymbol, line, charPositionInLine, msg, e) {
+              exceptions.push(new SyntaxError(`Position ${charPositionInLine}: ${msg}`))
+            }
+          })
+   
+          // Parse the input, where `compilationUnit` is whatever entry point you defined
+          let tree = parser.file();
+          if (exceptions.length > 0) {
+            throw new SyntaxErrors(exceptions);
+          }
+          // Create the listener
+          // Use the entry point for listeners
+          ParseTreeWalker.DEFAULT.walk(listener, tree)
+          return draw.node as SVGElement
+        } finally {          
+          container.removeChild(draw.node);
+        }
     }
 }

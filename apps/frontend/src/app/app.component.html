@@ -1,2 +1,11 @@
 <!-- <div><span style="font-size: 3px">Message: {{ hello$ | async | json }}</span></div> -->
-<textarea [formControl]='mdlInput'></textarea>
+<div>
+    <textarea [formControl]='mdlInput'></textarea>
+    <div *ngIf="syntaxErrors.length">
+        <ul>
+            <li *ngFor="let error of this.syntaxErrors">
+                {{error.message}}
+            </li>
+        </ul>
+    </div>
+</div>

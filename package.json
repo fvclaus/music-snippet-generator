@@ -25,7 +25,8 @@
     "workspace-schematic": "nx workspace-schematic",
     "dep-graph": "nx dep-graph",
     "help": "nx help",
-    "postinstall": "ngcc --properties es2015 browser module main --first-only --create-ivy-entry-points"
+    "postinstall": "ngcc --properties es2015 browser module main --first-only --create-ivy-entry-points",
+    "antlr4:generate": "rimraf libs/shared/src/lib/antlr4; antlr4ts -o libs/shared/src/lib/antlr4  -listener -Xexact-output-dir libs/shared/src/grammar/Mdl.g4"
   },
   "private": true,
   "dependencies": {
@@ -73,6 +74,7 @@
     "jest-preset-angular": "8.1.2",
     "prettier": "1.19.1",
     "raw-loader": "^4.0.1",
+    "rimraf": "^3.0.2",
     "ts-jest": "25.2.1",
     "ts-node": "~7.0.0",
     "tslint": "~6.0.0",

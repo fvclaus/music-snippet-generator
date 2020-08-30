@@ -1,11 +1,10 @@
-// Generated from libs/shared/src/lib/grammar/Mdl.g4 by ANTLR 4.7.3-SNAPSHOT
+// Generated from libs/shared/src/grammar/Mdl.g4 by ANTLR 4.7.3-SNAPSHOT
 
 
 import { ParseTreeListener } from "antlr4ts/tree/ParseTreeListener";
 
 import { FileContext } from "./MdlParser";
 import { TrebleStaffContext } from "./MdlParser";
-import { BassStaffContext } from "./MdlParser";
 import { BarContext } from "./MdlParser";
 import { PitchContext } from "./MdlParser";
 
@@ -36,17 +35,6 @@ export interface MdlListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	exitTrebleStaff?: (ctx: TrebleStaffContext) => void;
-
-	/**
-	 * Enter a parse tree produced by `MdlParser.bassStaff`.
-	 * @param ctx the parse tree
-	 */
-	enterBassStaff?: (ctx: BassStaffContext) => void;
-	/**
-	 * Exit a parse tree produced by `MdlParser.bassStaff`.
-	 * @param ctx the parse tree
-	 */
-	exitBassStaff?: (ctx: BassStaffContext) => void;
 
 	/**
 	 * Enter a parse tree produced by `MdlParser.bar`.

@@ -1,0 +1,7 @@
+TREBLE_CLEF=1
+BAR_LINE=2
+NOTE=3
+PITCH_CLASS=4
+WS=5
+'treble_clef'=1
+'|'=2
